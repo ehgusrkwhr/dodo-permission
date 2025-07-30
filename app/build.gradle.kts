@@ -37,8 +37,8 @@ android {
 }
 
 dependencies {
-    implementation(project(":permission-manager"))
-    
+//    implementation(project(":permission-manager"))
+    implementation("com.github.ehgusrkwhr:dodo-permission:1.0.0")
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.appcompat)
     implementation(libs.material)

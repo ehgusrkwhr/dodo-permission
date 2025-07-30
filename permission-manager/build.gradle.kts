@@ -77,14 +77,14 @@ afterEvaluate {
             register<MavenPublication>("release") {
                 from(components["release"])
                 
-                groupId = "com.github.your-username"
+                groupId = "com.github.ehgusrkwhr"
                 artifactId = "dodo-permission"
-                version = "1.0.0"
+                version = "1.0.1"
                 
                 pom {
                     name.set("DodoPermission")
                     description.set("Android permission management library with denial callback support")
-                    url.set("https://github.com/your-username/dodo-permission")
+                    url.set("https://github.com/ehgusrkwhr/dodo-permission")
                     
                     licenses {
                         license {
@@ -95,16 +95,16 @@ afterEvaluate {
                     
                     developers {
                         developer {
-                            id.set("your-username")
-                            name.set("Your Name")
-                            email.set("your.email@example.com")
+                            id.set("ehgusrkwhr")
+                            name.set("dodo")
+                            email.set("ehgus4688@gmail.com")
                         }
                     }
                     
                     scm {
-                        connection.set("scm:git:git://github.com/your-username/dodo-permission.git")
-                        developerConnection.set("scm:git:ssh://github.com:your-username/dodo-permission.git")
-                        url.set("https://github.com/your-username/dodo-permission/tree/main")
+                        connection.set("scm:git:git://github.com/ehgusrkwhr/dodo-permission.git")
+                        developerConnection.set("scm:git:ssh://github.com:ehgusrkwhr/dodo-permission.git")
+                        url.set("https://github.com/ehgusrkwhr/dodo-permission/tree/main")
                     }
                 }
             }
