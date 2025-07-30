@@ -152,6 +152,317 @@ RequestSinglePermission(
 )
 ```
 
+## 📱 XML 레이아웃 환경에서 사용법
+
+### Activity에서 사용
+
+```kotlin
+class MainActivity : ComponentActivity() {
+    private lateinit var permissionManager: PermissionManager
+    
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        setContentView(R.layout.activity_main)
+        
+        // 권한 매니저 초기화
+        permissionManager = PermissionManager(this)
+        
+        // 버튼 클릭 시 권한 요청
+        findViewById<Button>(R.id.btn_camera).setOnClickListener {
+            requestCameraPermission()
+        }
+    }
+    
+    private fun requestCameraPermission() {
+        permissionManager.requestPermission(
+            permission = PermissionConstants.CAMERA,
+            denialCallback = object : PermissionDenialCallback {
+                override fun onFirstTimeDenied(permission: String) {
+                    // 첫 번째 거부 - 친근한 토스트
+                    Toast.makeText(
+                        this@MainActivity, 
+                        "카메라 권한이 필요해요 😊", 
+                        Toast.LENGTH_SHORT
+                    ).show()
+                }
+                
+                override fun onSecondTimeDenied(permission: String) {
+                    // 두 번째 거부 - 상세 설명 다이얼로그
+                    showPermissionDialog(
+                        title = "권한이 꼭 필요합니다",
+                        message = "사진 촬영 기능을 위해 카메라 권한이 반드시 필요합니다.",
+                        onRetry = { requestCameraPermission() }
+                    )
+                }
+                
+                override fun onPermanentlyDenied(permission: String) {
+                    // 영구 거부 - 설정 안내
+                    showSettingsDialog()
+                }
+                
+                override fun onDenialWithInfo(denialInfo: PermissionDenialInfo) {
+                    // 로깅 또는 분석
+                    logPermissionDenial(denialInfo)
+                }
+            },
+            onGranted = {
+                // 권한 승인됨 - 카메라 기능 시작
+                startCameraActivity()
+            }
+        )
+    }
+    
+    private fun showPermissionDialog(title: String, message: String, onRetry: () -> Unit) {
+        AlertDialog.Builder(this)
+            .setTitle(title)
+            .setMessage(message)
+            .setPositiveButton("다시 시도") { _, _ -> onRetry() }
+            .setNegativeButton("취소", null)
+            .show()
+    }
+    
+    private fun showSettingsDialog() {
+        AlertDialog.Builder(this)
+            .setTitle("설정에서 권한 허용")
+            .setMessage("카메라 권한이 거부되었습니다.\n설정 > 앱 권한에서 카메라를 허용해주세요.")
+            .setPositiveButton("설정 열기") { _, _ ->
+                openAppSettings()
+            }
+            .setNegativeButton("취소", null)
+            .show()
+    }
+    
+    private fun openAppSettings() {
+        val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+            data = Uri.fromParts("package", packageName, null)
+        }
+        startActivity(intent)
+    }
+}
+```
+
+### Fragment에서 사용
+
+```kotlin
+class CameraFragment : Fragment() {
+    private lateinit var permissionManager: PermissionManager
+    
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+        super.onViewCreated(view, savedInstanceState)
+        
+        // 권한 매니저 초기화 (Fragment용)
+        permissionManager = PermissionManager(requireActivity())
+        
+        view.findViewById<Button>(R.id.btn_request_permission).setOnClickListener {
+            requestMicrophonePermission()
+        }
+    }
+    
+    private fun requestMicrophonePermission() {
+        // 통합 콜백 방식 사용
+        permissionManager.requestPermissionWithCallbacks(
+            permission = PermissionConstants.RECORD_AUDIO,
+            callbacks = object : PermissionCallbacks {
+                override fun onGranted() {
+                    // 권한 승인 - UI 업데이트
+                    updateUI(granted = true)
+                }
+                
+                override fun onDenied(denialInfo: PermissionDenialInfo) {
+                    when (denialInfo.denialType) {
+                        PermissionDenialType.FIRST_TIME_DENIED -> {
+                            // 스낵바로 간단한 안내
+                            Snackbar.make(
+                                requireView(),
+                                "마이크 권한이 필요합니다 (${denialInfo.denialCount}번째)",
+                                Snackbar.LENGTH_LONG
+                            ).setAction("재시도") {
+                                requestMicrophonePermission()
+                            }.show()
+                        }
+                        
+                        PermissionDenialType.SECOND_TIME_DENIED -> {
+                            // 더 상세한 설명
+                            showDetailDialog()
+                        }
+                        
+                        PermissionDenialType.PERMANENTLY_DENIED -> {
+                            // 설정 화면 안내
+                            showSettingsSnackbar()
+                        }
+                    }
+                }
+            }
+        )
+    }
+    
+    private fun showDetailDialog() {
+        AlertDialog.Builder(requireContext())
+            .setTitle("마이크 권한 안내")
+            .setMessage("음성 기록 기능을 위해 마이크 권한이 필요합니다.\n권한을 허용해주시겠어요?")
+            .setPositiveButton("권한 허용") { _, _ ->
+                requestMicrophonePermission()
+            }
+            .setNegativeButton("나중에", null)
+            .show()
+    }
+    
+    private fun showSettingsSnackbar() {
+        Snackbar.make(
+            requireView(),
+            "설정에서 마이크 권한을 허용해주세요",
+            Snackbar.LENGTH_INDEFINITE
+        ).setAction("설정") {
+            openAppSettings()
+        }.show()
+    }
+}
+```
+
+### 다중 권한 요청 (XML 환경)
+
+```kotlin
+class MediaActivity : AppCompatActivity() {
+    private lateinit var permissionManager: PermissionManager
+    
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        setContentView(R.layout.activity_media)
+        
+        permissionManager = PermissionManager(this)
+        
+        findViewById<Button>(R.id.btn_media_permissions).setOnClickListener {
+            requestMediaPermissions()
+        }
+    }
+    
+    private fun requestMediaPermissions() {
+        permissionManager.requestMultiplePermissions(
+            permissions = PermissionConstants.MEDIA_GROUP, // 카메라 + 마이크
+            onAllGranted = {
+                // 모든 권한 승인됨
+                Toast.makeText(this, "미디어 권한이 모두 승인되었습니다!", Toast.LENGTH_SHORT).show()
+                startMediaFeature()
+            },
+            onSomeGranted = { granted, denied ->
+                // 일부만 승인됨
+                val grantedNames = granted.joinToString { PermissionUtils.getPermissionName(it) }
+                val deniedNames = denied.joinToString { PermissionUtils.getPermissionName(it) }
+                
+                AlertDialog.Builder(this)
+                    .setTitle("일부 권한만 승인됨")
+                    .setMessage("승인: $grantedNames\n거부: $deniedNames")
+                    .setPositiveButton("확인", null)
+                    .show()
+            },
+            onAllDenied = {
+                // 모든 권한 거부됨
+                Toast.makeText(this, "미디어 기능을 사용할 수 없습니다", Toast.LENGTH_SHORT).show()
+            }
+        )
+    }
+}
+```
+
+### PermissionManager 클래스 구현
+
+XML 환경에서 사용할 수 있도록 하는 헬퍼 클래스입니다:
+
+```kotlin
+class PermissionManager(private val activity: ComponentActivity) {
+    
+    fun requestPermission(
+        permission: String,
+        denialCallback: PermissionDenialCallback,
+        onGranted: () -> Unit
+    ) {
+        // Compose 함수를 Activity에서 사용할 수 있도록 래핑
+        activity.setContent {
+            var shouldRequest by remember { mutableStateOf(true) }
+            
+            if (shouldRequest) {
+                RequestSinglePermissionAdvanced(
+                    permission = permission,
+                    onGranted = {
+                        onGranted()
+                        shouldRequest = false
+                    },
+                    denialCallback = object : PermissionDenialCallback {
+                        override fun onFirstTimeDenied(permission: String) {
+                            denialCallback.onFirstTimeDenied(permission)
+                        }
+                        override fun onSecondTimeDenied(permission: String) {
+                            denialCallback.onSecondTimeDenied(permission)
+                        }
+                        override fun onPermanentlyDenied(permission: String) {
+                            denialCallback.onPermanentlyDenied(permission)
+                        }
+                        override fun onDenialWithInfo(denialInfo: PermissionDenialInfo) {
+                            denialCallback.onDenialWithInfo(denialInfo)
+                            shouldRequest = false
+                        }
+                    }
+                )
+            }
+        }
+    }
+    
+    fun requestPermissionWithCallbacks(
+        permission: String,
+        callbacks: PermissionCallbacks
+    ) {
+        activity.setContent {
+            var shouldRequest by remember { mutableStateOf(true) }
+            
+            if (shouldRequest) {
+                RequestSinglePermissionWithCallbacks(
+                    permission = permission,
+                    callbacks = object : PermissionCallbacks {
+                        override fun onGranted() {
+                            callbacks.onGranted()
+                            shouldRequest = false
+                        }
+                        override fun onDenied(denialInfo: PermissionDenialInfo) {
+                            callbacks.onDenied(denialInfo)
+                            shouldRequest = false
+                        }
+                    }
+                )
+            }
+        }
+    }
+    
+    fun requestMultiplePermissions(
+        permissions: Array<String>,
+        onAllGranted: () -> Unit,
+        onSomeGranted: (granted: List<String>, denied: List<String>) -> Unit,
+        onAllDenied: () -> Unit
+    ) {
+        activity.setContent {
+            var shouldRequest by remember { mutableStateOf(true) }
+            
+            if (shouldRequest) {
+                RequestMultiplePermissions(
+                    permissions = permissions,
+                    onAllGranted = {
+                        onAllGranted()
+                        shouldRequest = false
+                    },
+                    onSomeGranted = { granted, denied ->
+                        onSomeGranted(granted, denied)
+                        shouldRequest = false
+                    },
+                    onAllDenied = {
+                        onAllDenied()
+                        shouldRequest = false
+                    }
+                )
+            }
+        }
+    }
+}
+```
+
 ## 🎮 테스트 앱
 
 프로젝트에는 실제 동작을 확인할 수 있는 테스트 앱이 포함되어 있습니다:

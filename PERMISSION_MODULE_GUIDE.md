@@ -197,9 +197,7 @@ fun SequentialPermissionsScreen() {
 
 ## 기존 방식 (호환성)
 
-기존 코드와의 호환성을 위해 유지되는 방식입니다.
-
-### 단일 권한 요청 (기존)
+### Compose 환경에서 기존 방식
 
 ```kotlin
 @Composable
@@ -222,6 +220,204 @@ fun LegacyPermissionScreen() {
                 shouldRequest = false
             }
         )
+    }
+}
+```
+
+## XML 레이아웃 환경에서 사용법
+
+### Activity에서 사용
+
+```kotlin
+class MainActivity : ComponentActivity() {
+    private lateinit var permissionManager: PermissionManager
+    
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        setContentView(R.layout.activity_main)
+        
+        // 권한 매니저 초기화
+        permissionManager = PermissionManager(this)
+        
+        // 버튼 클릭 시 권한 요청
+        findViewById<Button>(R.id.btn_camera).setOnClickListener {
+            requestCameraPermission()
+        }
+    }
+    
+    private fun requestCameraPermission() {
+        permissionManager.requestPermission(
+            permission = PermissionConstants.CAMERA,
+            denialCallback = object : PermissionDenialCallback {
+                override fun onFirstTimeDenied(permission: String) {
+                    // 첫 번째 거부 - 친근한 토스트
+                    Toast.makeText(
+                        this@MainActivity, 
+                        "카메라 권한이 필요해요 😊", 
+                        Toast.LENGTH_SHORT
+                    ).show()
+                }
+                
+                override fun onSecondTimeDenied(permission: String) {
+                    // 두 번째 거부 - 상세 설명 다이얼로그
+                    showPermissionDialog(
+                        title = "권한이 꼭 필요합니다",
+                        message = "사진 촬영 기능을 위해 카메라 권한이 반드시 필요합니다.",
+                        onRetry = { requestCameraPermission() }
+                    )
+                }
+                
+                override fun onPermanentlyDenied(permission: String) {
+                    // 영구 거부 - 설정 안내
+                    showSettingsDialog()
+                }
+            },
+            onGranted = {
+                // 권한 승인됨 - 카메라 기능 시작
+                startCameraActivity()
+            }
+        )
+    }
+    
+    private fun showPermissionDialog(title: String, message: String, onRetry: () -> Unit) {
+        AlertDialog.Builder(this)
+            .setTitle(title)
+            .setMessage(message)
+            .setPositiveButton("다시 시도") { _, _ -> onRetry() }
+            .setNegativeButton("취소", null)
+            .show()
+    }
+    
+    private fun showSettingsDialog() {
+        AlertDialog.Builder(this)
+            .setTitle("설정에서 권한 허용")
+            .setMessage("설정 > 앱 권한에서 카메라를 허용해주세요.")
+            .setPositiveButton("설정 열기") { _, _ ->
+                // 설정 화면으로 이동
+                val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                    data = Uri.fromParts("package", packageName, null)
+                }
+                startActivity(intent)
+            }
+            .setNegativeButton("취소", null)
+            .show()
+    }
+}
+```
+
+### Fragment에서 사용
+
+```kotlin
+class CameraFragment : Fragment() {
+    private lateinit var permissionManager: PermissionManager
+    
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+        super.onViewCreated(view, savedInstanceState)
+        
+        // 권한 매니저 초기화
+        permissionManager = createPermissionManager()
+        
+        view.findViewById<Button>(R.id.btn_request_permission).setOnClickListener {
+            requestMicrophonePermission()
+        }
+    }
+    
+    private fun requestMicrophonePermission() {
+        // 통합 콜백 방식 사용
+        permissionManager.requestPermissionWithCallbacks(
+            permission = PermissionConstants.RECORD_AUDIO,
+            callbacks = object : PermissionCallbacks {
+                override fun onGranted() {
+                    // 권한 승인 - UI 업데이트
+                    updateUI(granted = true)
+                }
+                
+                override fun onDenied(denialInfo: PermissionDenialInfo) {
+                    when (denialInfo.denialType) {
+                        PermissionDenialType.FIRST_TIME_DENIED -> {
+                            // 스낵바로 간단한 안내
+                            Snackbar.make(
+                                requireView(),
+                                "마이크 권한이 필요합니다 (${denialInfo.denialCount}번째)",
+                                Snackbar.LENGTH_LONG
+                            ).setAction("재시도") {
+                                requestMicrophonePermission()
+                            }.show()
+                        }
+                        
+                        PermissionDenialType.SECOND_TIME_DENIED -> {
+                            // 더 상세한 다이얼로그
+                            AlertDialog.Builder(requireContext())
+                                .setTitle("마이크 권한 안내")
+                                .setMessage("음성 기록을 위해 마이크 권한이 필요합니다.")
+                                .setPositiveButton("권한 허용") { _, _ ->
+                                    requestMicrophonePermission()
+                                }
+                                .setNegativeButton("나중에", null)
+                                .show()
+                        }
+                        
+                        PermissionDenialType.PERMANENTLY_DENIED -> {
+                            // 설정 화면 안내
+                            Snackbar.make(
+                                requireView(),
+                                "설정에서 마이크 권한을 허용해주세요",
+                                Snackbar.LENGTH_INDEFINITE
+                            ).setAction("설정") {
+                                // 설정 화면으로 이동
+                            }.show()
+                        }
+                    }
+                }
+            }
+        )
+    }
+}
+```
+
+### 편의 확장 함수 사용
+
+```kotlin
+class SimpleActivity : ComponentActivity() {
+    
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        setContentView(R.layout.activity_simple)
+        
+        // 간단한 카메라 권한 요청
+        findViewById<Button>(R.id.btn_camera).setOnClickListener {
+            requestCameraPermission(
+                denialCallback = object : PermissionDenialCallback {
+                    override fun onFirstTimeDenied(permission: String) {
+                        Toast.makeText(this@SimpleActivity, "카메라 권한이 필요해요", Toast.LENGTH_SHORT).show()
+                    }
+                    override fun onSecondTimeDenied(permission: String) {
+                        showDetailedDialog()
+                    }
+                    override fun onPermanentlyDenied(permission: String) {
+                        showSettingsDialog()
+                    }
+                },
+                onGranted = {
+                    Toast.makeText(this, "카메라 권한 승인!", Toast.LENGTH_SHORT).show()
+                }
+            )
+        }
+        
+        // 미디어 권한 그룹 요청
+        findViewById<Button>(R.id.btn_media).setOnClickListener {
+            requestMediaPermissions(
+                onAllGranted = {
+                    Toast.makeText(this, "모든 미디어 권한 승인!", Toast.LENGTH_SHORT).show()
+                },
+                onSomeGranted = { granted, denied ->
+                    Toast.makeText(this, "일부만 승인: ${granted.size}개", Toast.LENGTH_SHORT).show()
+                },
+                onAllDenied = {
+                    Toast.makeText(this, "미디어 권한이 모두 거부됨", Toast.LENGTH_SHORT).show()
+                }
+            )
+        }
     }
 }
 ```

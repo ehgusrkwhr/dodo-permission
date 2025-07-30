@@ -2,6 +2,7 @@ plugins {
     alias(libs.plugins.android.library)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
+    id("maven-publish")
 }
 
 android {
@@ -67,4 +68,46 @@ dependencies {
     androidTestImplementation("androidx.compose.ui:ui-test-junit4")
     debugImplementation("androidx.compose.ui:ui-tooling")
     debugImplementation("androidx.compose.ui:ui-test-manifest")
+}
+
+// JitPack 지원을 위한 publishing 설정
+afterEvaluate {
+    publishing {
+        publications {
+            register<MavenPublication>("release") {
+                from(components["release"])
+                
+                groupId = "com.github.your-username"
+                artifactId = "dodo-permission"
+                version = "1.0.0"
+                
+                pom {
+                    name.set("DodoPermission")
+                    description.set("Android permission management library with denial callback support")
+                    url.set("https://github.com/your-username/dodo-permission")
+                    
+                    licenses {
+                        license {
+                            name.set("MIT License")
+                            url.set("https://opensource.org/licenses/MIT")
+                        }
+                    }
+                    
+                    developers {
+                        developer {
+                            id.set("your-username")
+                            name.set("Your Name")
+                            email.set("your.email@example.com")
+                        }
+                    }
+                    
+                    scm {
+                        connection.set("scm:git:git://github.com/your-username/dodo-permission.git")
+                        developerConnection.set("scm:git:ssh://github.com:your-username/dodo-permission.git")
+                        url.set("https://github.com/your-username/dodo-permission/tree/main")
+                    }
+                }
+            }
+        }
+    }
 }
